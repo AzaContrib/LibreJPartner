@@ -1,4 +1,5 @@
 import type { Document, Types } from 'mongoose';
+import type { TJapaneseLearningProfile } from 'librechat-data-provider';
 
 // @ts-ignore
 export interface IConversation extends Document {
@@ -53,6 +54,7 @@ export interface IConversation extends Document {
   web_search?: boolean;
   disableStreaming?: boolean;
   fileTokenLimit?: number;
+  japaneseLearning?: TJapaneseLearningProfile;
   // Additional fields
   files?: string[];
   expiredAt?: Date;

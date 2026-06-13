@@ -41,6 +41,7 @@ import { useResetChatBadges } from './useChatBadges';
 import { useApplyModelSpecEffects } from './Agents';
 import { usePauseGlobalAudio } from './Audio';
 import { useHasAccess } from '~/hooks';
+import { useAgentsMapContext } from '~/Providers';
 import store from '~/store';
 
 const useNewConvo = (index = 0) => {
@@ -67,6 +68,7 @@ const useNewConvo = (index = 0) => {
   const { pauseGlobalAudio } = usePauseGlobalAudio(index);
   const saveDrafts = useRecoilValue<boolean>(store.saveDrafts);
   const resetBadges = useResetChatBadges();
+  const agentsMap = useAgentsMapContext();
 
   const { mutateAsync } = useDeleteFilesMutation({
     onSuccess: () => {
@@ -120,25 +122,30 @@ const useNewConvo = (index = 0) => {
             endpointsConfig,
           });
 
-          // If the selected endpoint is agents but user doesn't have access, find an alternative
-          // Skip this check for existing agent conversations (they have agent_id set)
-          // Also check localStorage for new conversations restored after refresh
+          // If the selected endpoint is agents but there is no usable agent, find an alternative.
+          // Skip this check for existing agent conversations, including new chats restored after refresh.
           const { lastConversationSetup } = getLocalStorageItems();
           const storedAgentId =
             isAgentsEndpoint(lastConversationSetup?.endpoint) && lastConversationSetup?.agent_id;
+          const hasAccessibleAgents = agentsMap != null && Object.keys(agentsMap).length > 0;
           const isExistingAgentConvo =
             isAgentsEndpoint(defaultEndpoint) &&
             ((conversation.agent_id && !isEphemeralAgentId(conversation.agent_id)) ||
               (storedAgentId && !isEphemeralAgentId(storedAgentId)));
-          if (
+          const needsAgentFallback =
             defaultEndpoint &&
             isAgentsEndpoint(defaultEndpoint) &&
-            !hasAgentAccess &&
-            !isExistingAgentConvo
-          ) {
-            defaultEndpoint = Object.keys(endpointsConfig ?? {}).find(
+            !isExistingAgentConvo &&
+            (!hasAgentAccess || !hasAccessibleAgents);
+
+          const fallbackEndpoint = () =>
+            Object.keys(endpointsConfig ?? {}).find(
               (ep) => !isAgentsEndpoint(ep as EModelEndpoint) && endpointsConfig?.[ep],
             ) as EModelEndpoint | undefined;
+          const nonAgentFallbackEndpoint = fallbackEndpoint();
+
+          if (needsAgentFallback && nonAgentFallbackEndpoint) {
+            defaultEndpoint = nonAgentFallbackEndpoint;
           }
 
           if (!defaultEndpoint) {
@@ -146,8 +153,9 @@ const useNewConvo = (index = 0) => {
             defaultEndpoint = Object.keys(endpointsConfig ?? {}).find((ep) => {
               if (
                 isAgentsEndpoint(ep as EModelEndpoint) &&
-                !hasAgentAccess &&
-                !isExistingAgentConvo
+                (!hasAgentAccess || !hasAccessibleAgents) &&
+                !isExistingAgentConvo &&
+                !!nonAgentFallbackEndpoint
               ) {
                 return false;
               }
@@ -277,6 +285,7 @@ const useNewConvo = (index = 0) => {
       assistantsListMap,
       modelsQuery.data,
       hasAgentAccess,
+      agentsMap,
       searchParams,
     ],
   );

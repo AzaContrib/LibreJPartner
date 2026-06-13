@@ -150,7 +150,7 @@ export function createPromptMethods(
       const groups = await PromptGroup.find(query)
         .sort({ numberOfGenerations: -1, updatedAt: -1, _id: 1 })
         .select(
-          'name numberOfGenerations oneliner category author authorName createdAt updatedAt command productionId',
+          'name numberOfGenerations oneliner category japaneseLearning author authorName createdAt updatedAt command productionId',
         )
         .lean();
       return await attachProductionPrompts(groups as unknown as Array<Record<string, unknown>>);
@@ -219,7 +219,7 @@ export function createPromptMethods(
           .skip(skip)
           .limit(limit)
           .select(
-            'name numberOfGenerations oneliner category productionId author authorName createdAt updatedAt',
+            'name numberOfGenerations oneliner category japaneseLearning productionId author authorName createdAt updatedAt',
           )
           .lean(),
         PromptGroup.countDocuments(query),
@@ -356,7 +356,7 @@ export function createPromptMethods(
     const findQuery = PromptGroup.find(matchQuery)
       .sort({ numberOfGenerations: -1, updatedAt: -1, _id: 1 })
       .select(
-        'name numberOfGenerations oneliner category productionId author authorName createdAt updatedAt',
+        'name numberOfGenerations oneliner category japaneseLearning productionId author authorName createdAt updatedAt',
       );
 
     if (isPaginated && normalizedLimit) {

@@ -365,6 +365,8 @@ export type TOptions = {
    * pills are still visible on the user bubble.
    */
   overrideManualSkills?: string[];
+  /** Per-submit conversation fields that must be applied before React state catches up. */
+  conversationOverrides?: Partial<t.TConversation>;
   /** Added conversation for multi-convo feature - sent to server as part of submission payload */
   addedConvo?: t.TConversation;
 };

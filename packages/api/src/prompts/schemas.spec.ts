@@ -46,6 +46,22 @@ describe('updatePromptGroupSchema', () => {
       }
     });
 
+    it('should accept Japanese learning settings', () => {
+      const japaneseLearning = {
+        enabled: true,
+        advisorEnabled: true,
+        learnerLevel: 'N5',
+        partnerRole: 'outdoor club supervisor',
+        targetRegister: 'formal',
+        advisorModel: 'gpt-5.5',
+      };
+      const result = updatePromptGroupSchema.safeParse({ japaneseLearning });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.japaneseLearning).toEqual(japaneseLearning);
+      }
+    });
+
     it('should accept multiple valid fields', () => {
       const input = {
         name: 'Updated Name',
@@ -169,6 +185,16 @@ describe('updatePromptGroupSchema', () => {
 
     it('should reject command with invalid characters (special)', () => {
       const result = updatePromptGroupSchema.safeParse({ command: 'my_command!' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid Japanese learning register', () => {
+      const result = updatePromptGroupSchema.safeParse({
+        japaneseLearning: {
+          enabled: true,
+          targetRegister: 'royal',
+        },
+      });
       expect(result.success).toBe(false);
     });
   });

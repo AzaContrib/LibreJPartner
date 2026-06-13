@@ -9,7 +9,11 @@ const {
   deleteConvoSharedLinksWithCleanup,
 } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
-const { CacheKeys, EModelEndpoint } = require('librechat-data-provider');
+const {
+  CacheKeys,
+  EModelEndpoint,
+  japaneseLearningProfileSchema,
+} = require('librechat-data-provider');
 const {
   createImportLimiters,
   validateConvoAccess,
@@ -243,6 +247,38 @@ router.post('/update', validateConvoAccess, async (req, res) => {
   } catch (error) {
     logger.error('Error updating conversation', error);
     res.status(500).send('Error updating conversation');
+  }
+});
+
+router.post('/japanese-learning', validateConvoAccess, async (req, res) => {
+  const { conversationId, japaneseLearning } = req.body?.arg ?? {};
+
+  if (!conversationId) {
+    return res.status(400).json({ error: 'conversationId is required' });
+  }
+
+  const parsedProfile = japaneseLearningProfileSchema.safeParse(japaneseLearning ?? {});
+  if (!parsedProfile.success) {
+    return res.status(400).json({ error: 'japaneseLearning is invalid' });
+  }
+
+  try {
+    const dbResponse = await db.saveConvo(
+      {
+        userId: req?.user?.id,
+        isTemporary: req?.body?.isTemporary,
+        interfaceConfig: req?.config?.interfaceConfig,
+      },
+      { conversationId, japaneseLearning: parsedProfile.data },
+      {
+        context: `POST /api/convos/japanese-learning ${conversationId}`,
+        noUpsert: true,
+      },
+    );
+    res.status(200).json(dbResponse);
+  } catch (error) {
+    logger.error('Error updating Japanese learning profile', error);
+    res.status(500).send('Error updating Japanese learning profile');
   }
 });
 

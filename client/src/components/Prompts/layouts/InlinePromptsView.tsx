@@ -1,15 +1,19 @@
 import { useCallback } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { Spinner } from '@librechat/client';
 import { PermissionTypes, Permissions } from 'librechat-data-provider';
 import EmptyPromptPreview from '../display/EmptyPromptPreview';
 import CreatePromptForm from '../forms/CreatePromptForm';
-import { useHasAccess } from '~/hooks';
+import { useAuthContext, useHasAccess } from '~/hooks';
 import PromptForm from '../forms/PromptForm';
 
 export default function InlinePromptsView() {
   const { promptId } = useParams();
   const navigate = useNavigate();
   const isNew = promptId === undefined;
+  const { user, roles, isAuthenticated } = useAuthContext();
+  const isRoleLoading =
+    isAuthenticated === true && user?.role != null && roles?.[user.role] == null;
 
   const hasAccess = useHasAccess({
     permissionType: PermissionTypes.PROMPTS,
@@ -27,6 +31,14 @@ export default function InlinePromptsView() {
     },
     [navigate],
   );
+
+  if (isRoleLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-presentation">
+        <Spinner className="text-text-secondary" />
+      </div>
+    );
+  }
 
   if (!hasAccess) {
     return <Navigate to="/c/new" replace />;

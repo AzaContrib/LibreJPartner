@@ -22,6 +22,35 @@ const promptGroupSchema: Schema<IPromptGroupDocument> = new Schema<IPromptGroupD
       default: '',
       index: true,
     },
+    japaneseLearning: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      advisorEnabled: {
+        type: Boolean,
+        default: true,
+      },
+      learnerLevel: {
+        type: String,
+        enum: ['N5', 'N4', 'N3', 'N2', 'N1'],
+        default: 'N5',
+      },
+      partnerRole: {
+        type: String,
+        default: '',
+        maxlength: 500,
+      },
+      targetRegister: {
+        type: String,
+        enum: ['auto', 'casual', 'polite', 'formal'],
+        default: 'auto',
+      },
+      advisorModel: {
+        type: String,
+        maxlength: 100,
+      },
+    },
     productionId: {
       type: Schema.Types.ObjectId,
       ref: 'Prompt',

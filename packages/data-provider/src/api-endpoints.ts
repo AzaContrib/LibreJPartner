@@ -69,6 +69,11 @@ export const messagesArtifacts = (messageId: string) => `${messagesRoot}/artifac
 
 export const messagesBranch = () => `${messagesRoot}/branch`;
 
+export const japaneseAdvice = (conversationId: string, messageId: string) =>
+  `${messagesRoot}/${encodeURIComponent(conversationId)}/${encodeURIComponent(
+    messageId,
+  )}/japanese-advice`;
+
 const shareRoot = `${BASE_URL}/api/share`;
 export const shareMessages = (shareId: string) => `${shareRoot}/${shareId}`;
 export const getSharedLink = (conversationId: string) => `${shareRoot}/link/${conversationId}`;
@@ -113,6 +118,8 @@ export const genTitle = (conversationId: string) =>
   `${conversationsRoot}/gen_title/${encodeURIComponent(conversationId)}`;
 
 export const updateConversation = () => `${conversationsRoot}/update`;
+
+export const updateJapaneseLearning = () => `${conversationsRoot}/japanese-learning`;
 
 export const archiveConversation = () => `${conversationsRoot}/archive`;
 

@@ -43,6 +43,7 @@ export default function useSSE(
     contentHandler,
     createdHandler,
     titleHandler,
+    japaneseAdviceHandler,
     attachmentHandler,
     abortConversation,
   } = useEventHandlers({
@@ -116,6 +117,8 @@ export default function useSSE(
         createdHandler(data, { ...submission, userMessage } as EventSubmission);
       } else if (data.event === 'title') {
         titleHandler(data);
+      } else if (data.event === 'japanese_advice') {
+        japaneseAdviceHandler(data);
       } else if (data.event != null) {
         stepHandler(data, { ...submission, userMessage } as EventSubmission);
       } else if (data.sync != null) {

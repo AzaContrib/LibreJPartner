@@ -7,6 +7,8 @@ import type {
   TAttachment,
   TMessage,
   TBanner,
+  TJapaneseAdvice,
+  TJapaneseLearningProfile,
   ReasoningResponseKey,
   ReasoningParameterFormat,
 } from './schemas';
@@ -76,6 +78,7 @@ export type TEndpointOption = Pick<
   | 'examples'
   // Context
   | 'context'
+  | 'japaneseLearning'
 > & {
   // Fields specific to endpoint options that don't exist on TConversation
   modelDisplayLabel?: string;
@@ -283,12 +286,30 @@ export type TAgentApiKeyListResponse = {
   keys: TAgentApiKeyListItem[];
 };
 
-export type TUpdateConversationRequest = {
+export type TUpdateConversationRequest = Partial<TConversation> & {
   conversationId: string;
-  title: string;
 };
 
 export type TUpdateConversationResponse = TConversation;
+
+export type TUpdateJapaneseLearningRequest = {
+  conversationId: string;
+  japaneseLearning: TJapaneseLearningProfile;
+};
+
+export type TUpdateJapaneseLearningResponse = TConversation;
+
+export type TJapaneseAdviceRequest = {
+  conversationId: string;
+  messageId: string;
+  japaneseLearning?: TJapaneseLearningProfile;
+};
+
+export type TJapaneseAdviceResponse = {
+  conversationId: string;
+  messageId: string;
+  advice: TJapaneseAdvice;
+};
 
 export type TChatProject = {
   _id: string;
@@ -600,6 +621,7 @@ export type TPromptGroup = {
   command?: string;
   oneliner?: string;
   category?: string;
+  japaneseLearning?: TJapaneseLearningProfile;
   productionId?: string | null;
   productionPrompt?: Pick<TPrompt, 'prompt'> | null;
   author: string;
@@ -612,7 +634,13 @@ export type TPromptGroup = {
 
 export type TCreatePrompt = {
   prompt: Pick<TPrompt, 'prompt' | 'type'> & { groupId?: string };
-  group?: { name: string; category?: string; oneliner?: string; command?: string };
+  group?: {
+    name: string;
+    category?: string;
+    oneliner?: string;
+    command?: string;
+    japaneseLearning?: TJapaneseLearningProfile;
+  };
 };
 
 export type TCreatePromptRecord = TCreatePrompt & Pick<TPromptGroup, 'author' | 'authorName'>;

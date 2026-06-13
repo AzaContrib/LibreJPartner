@@ -1,12 +1,17 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('@librechat/data-schemas');
-const { ContentTypes, isAssistantsEndpoint } = require('librechat-data-provider');
+const {
+  ContentTypes,
+  isAssistantsEndpoint,
+  japaneseLearningProfileSchema,
+} = require('librechat-data-provider');
 const {
   unescapeLaTeX,
   countTokens,
   sendFeedbackScore,
   traceIdForMessage,
+  runJapaneseAdvisor,
 } = require('@librechat/api');
 const { findAllArtifacts, replaceArtifactContent } = require('~/server/services/Artifacts/update');
 const { requireJwtAuth, validateMessageReq } = require('~/server/middleware');
@@ -423,6 +428,41 @@ router.put('/:conversationId/:messageId/feedback', validateMessageReq, async (re
   } catch (error) {
     logger.error('Error updating message feedback:', error);
     res.status(500).json({ error: 'Failed to update feedback' });
+  }
+});
+
+router.post('/:conversationId/:messageId/japanese-advice', validateMessageReq, async (req, res) => {
+  try {
+    const { conversationId, messageId } = req.params;
+    const message = await db.getMessage({ user: req.user.id, messageId });
+    if (!message || message.conversationId !== conversationId) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    if (message.isCreatedByUser !== true) {
+      return res.status(400).json({ error: 'Japanese advice is only available for user messages' });
+    }
+
+    const conversation = await db.getConvo(req.user.id, conversationId);
+    const rawProfile = req.body?.japaneseLearning ?? conversation?.japaneseLearning ?? {};
+    const parsedProfile = japaneseLearningProfileSchema.safeParse(rawProfile);
+    if (!parsedProfile.success) {
+      return res.status(400).json({ error: 'japaneseLearning is invalid' });
+    }
+
+    const advice = await runJapaneseAdvisor({
+      text: message.text ?? '',
+      profile: parsedProfile.data,
+    });
+
+    await db.updateMessageJapaneseAdvice(req.user.id, { messageId, advice });
+    res.status(200).json({
+      conversationId,
+      messageId,
+      advice,
+    });
+  } catch (error) {
+    logger.error('Error checking Japanese advice:', error);
+    res.status(500).json({ error: 'Failed to check Japanese advice' });
   }
 });
 

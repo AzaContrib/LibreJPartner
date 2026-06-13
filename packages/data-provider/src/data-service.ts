@@ -789,6 +789,12 @@ export function updateConversation(
   return request.post(endpoints.updateConversation(), { arg: payload });
 }
 
+export function updateJapaneseLearning(
+  payload: t.TUpdateJapaneseLearningRequest,
+): Promise<t.TUpdateJapaneseLearningResponse> {
+  return request.post(endpoints.updateJapaneseLearning(), { arg: payload });
+}
+
 export function archiveConversation(
   payload: t.TArchiveConversationRequest,
 ): Promise<t.TArchiveConversationResponse> {
@@ -861,6 +867,22 @@ export const branchMessage = async (
 ): Promise<m.TBranchMessageResponse> => {
   return request.post(endpoints.messagesBranch(), payload);
 };
+
+export function requestJapaneseAdvice(
+  payload: t.TJapaneseAdviceRequest,
+): Promise<t.TJapaneseAdviceResponse> {
+  const { conversationId, messageId, japaneseLearning } = payload;
+  if (!conversationId) {
+    throw new Error('conversationId is required');
+  }
+  if (!messageId) {
+    throw new Error('messageId is required');
+  }
+
+  return request.post(endpoints.japaneseAdvice(conversationId, messageId), {
+    japaneseLearning,
+  });
+}
 
 export function getMessagesByConvoId(conversationId: string): Promise<s.TMessage[]> {
   if (

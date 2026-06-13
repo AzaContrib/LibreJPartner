@@ -80,6 +80,7 @@ function areMessageRenderPropsEqual(prev: MessageRenderProps, next: MessageRende
     prevMsg.endpoint === nextMsg.endpoint &&
     prevMsg.iconURL === nextMsg.iconURL &&
     prevMsg.feedback?.rating === nextMsg.feedback?.rating &&
+    prevMsg.metadata?.japaneseAdvice === nextMsg.metadata?.japaneseAdvice &&
     (prevMsg.files?.length ?? 0) === (nextMsg.files?.length ?? 0)
   );
 }

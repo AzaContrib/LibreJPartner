@@ -11,11 +11,13 @@ const {
   sanitizeMessageForTransmit,
   checkAndIncrementPendingRequest,
   isUnpersistedPreliminaryParent,
+  runJapaneseAdvisor,
+  JAPANESE_ADVICE_EVENT,
 } = require('@librechat/api');
 const { disposeClient, clientRegistry, requestDataMap } = require('~/server/cleanup');
 const { handleAbortError } = require('~/server/middleware');
 const { logViolation } = require('~/cache');
-const { saveMessage, getMessages, getConvo } = require('~/models');
+const { saveMessage, getMessages, getConvo, updateMessageJapaneseAdvice } = require('~/models');
 
 function createCloseHandler(abortController) {
   return function (manual) {
@@ -144,6 +146,18 @@ function rejectPreliminaryParentMessageId(res) {
     error:
       'Cannot submit a follow-up while the selected parent response is still being saved. Please wait and try again.',
   });
+}
+
+function getJapaneseLearningProfile(req, endpointOption) {
+  return req.body?.japaneseLearning ?? endpointOption?.japaneseLearning;
+}
+
+function isJapaneseLearningAdvisorEnabled(profile) {
+  return profile?.enabled === true && profile?.advisorEnabled !== false;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -339,13 +353,81 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     }
 
     let userMessage;
+    let userMessagePromise = null;
+    let japaneseAdvicePromise = null;
+    let japaneseAdvicePersistPromise = null;
 
     const getReqData = (data = {}) => {
       if (data.userMessage) {
         userMessage = data.userMessage;
       }
+      if (data.userMessagePromise) {
+        userMessagePromise = data.userMessagePromise;
+        scheduleJapaneseAdvicePersist();
+      }
       // conversationId is pre-generated, no need to update from callback
     };
+
+    const startJapaneseAdvice = (userMsg) => {
+      const profile = getJapaneseLearningProfile(req, endpointOption);
+      if (!isJapaneseLearningAdvisorEnabled(profile) || !userMsg?.text) {
+        return;
+      }
+
+      japaneseAdvicePromise = runJapaneseAdvisor({
+        text: userMsg.text,
+        profile,
+      }).catch((error) => {
+        logger.error('[ResumableAgentController] Japanese advisor failed', error);
+        return {
+          status: 'error',
+          summaryEnglish: 'The advisor request failed.',
+          error: error?.message ?? 'Unknown advisor error',
+          checkedAt: new Date().toISOString(),
+        };
+      });
+      scheduleJapaneseAdvicePersist();
+    };
+
+    function scheduleJapaneseAdvicePersist() {
+      if (
+        !japaneseAdvicePromise ||
+        !userMessagePromise ||
+        !userMessage?.messageId ||
+        japaneseAdvicePersistPromise
+      ) {
+        return;
+      }
+
+      japaneseAdvicePersistPromise = (async () => {
+        try {
+          await userMessagePromise.catch((error) => {
+            logger.warn('[ResumableAgentController] User message save failed before advice', {
+              error: error?.message ?? error,
+            });
+          });
+          const advice = await japaneseAdvicePromise;
+          await updateMessageJapaneseAdvice(userId, {
+            messageId: userMessage.messageId,
+            advice,
+          });
+          userMessage.metadata = {
+            ...(userMessage.metadata ?? {}),
+            japaneseAdvice: advice,
+          };
+          await GenerationJobManager.emitChunk(streamId, {
+            event: JAPANESE_ADVICE_EVENT,
+            data: {
+              conversationId,
+              messageId: userMessage.messageId,
+              advice,
+            },
+          });
+        } catch (error) {
+          logger.error('[ResumableAgentController] Failed to persist Japanese advice', error);
+        }
+      })();
+    }
 
     // Start background generation - readyPromise resolves immediately now
     // (sync mechanism handles late subscribers)
@@ -417,6 +499,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       try {
         const onStart = (userMsg, respMsgId, _isNewConvo) => {
           userMessage = userMsg;
+          startJapaneseAdvice(userMsg);
 
           // Store userMessage and responseMessageId upfront for resume capability
           GenerationJobManager.updateMetadata(streamId, {
@@ -516,9 +599,13 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         };
 
         if (!client.skipSaveUserMessage && userMessage) {
-          await saveMessage(reqCtx, userMessage, {
+          const savedUserMessage = await saveMessage(reqCtx, userMessage, {
             context: 'api/server/controllers/agents/request.js - resumable user message',
           });
+          if (!userMessagePromise) {
+            userMessagePromise = Promise.resolve(savedUserMessage);
+            scheduleJapaneseAdvicePersist();
+          }
         }
 
         // CRITICAL: Save response message BEFORE emitting final event.
@@ -536,6 +623,10 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         // This prevents stale requests from emitting events to newer jobs
         const currentJob = await GenerationJobManager.getJob(streamId);
         const jobWasReplaced = !currentJob || currentJob.createdAt !== jobCreatedAt;
+
+        if (!jobWasReplaced && japaneseAdvicePersistPromise) {
+          await Promise.race([japaneseAdvicePersistPromise, wait(1200)]);
+        }
 
         if (jobWasReplaced) {
           logger.debug(`[ResumableAgentController] Skipping FINAL emit - job was replaced`, {
