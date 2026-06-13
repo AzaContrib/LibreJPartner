@@ -40,6 +40,8 @@ const {
   isHITLEnabled,
   agentRequestsAskUserQuestion,
   resolveAgentTurnExecutionPlan,
+  runJapaneseAdvisor,
+  JAPANESE_ADVICE_EVENT,
 } = require('@librechat/api');
 const { disposeClient } = require('~/server/cleanup');
 const {
@@ -574,6 +576,18 @@ function rejectMissingTriggerParentMessageId(res, generationProtocolVersion) {
     },
     generationProtocolVersion,
   );
+}
+
+function getJapaneseLearningProfile(req, endpointOption) {
+  return req.body?.japaneseLearning ?? endpointOption?.japaneseLearning;
+}
+
+function isJapaneseLearningAdvisorEnabled(profile) {
+  return profile?.enabled === true && profile?.advisorEnabled !== false;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -1873,6 +1887,9 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
     let userMessage;
     let liveResponseMessageId = preallocatedResponseMessageId;
+    let userMessagePromise = null;
+    let japaneseAdvicePromise = null;
+    let japaneseAdvicePersistPromise = null;
 
     const getReqData = (data = {}) => {
       if (data.userMessage) {
@@ -1880,6 +1897,10 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       }
       if (data.responseMessageId) {
         liveResponseMessageId = data.responseMessageId;
+      }
+      if (data.userMessagePromise) {
+        userMessagePromise = data.userMessagePromise;
+        scheduleJapaneseAdvicePersist();
       }
       // conversationId is pre-generated, no need to update from callback
     };
@@ -1912,6 +1933,70 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         terminalClaimFinished = true;
       }
     };
+
+    const startJapaneseAdvice = (userMsg) => {
+      const profile = getJapaneseLearningProfile(req, endpointOption);
+      if (!isJapaneseLearningAdvisorEnabled(profile) || !userMsg?.text) {
+        return;
+      }
+
+      japaneseAdvicePromise = runJapaneseAdvisor({
+        text: userMsg.text,
+        profile,
+      }).catch((error) => {
+        logger.error('[ResumableAgentController] Japanese advisor failed', error);
+        return {
+          status: 'error',
+          summaryEnglish: 'The advisor request failed.',
+          error: error?.message ?? 'Unknown advisor error',
+          checkedAt: new Date().toISOString(),
+        };
+      });
+      scheduleJapaneseAdvicePersist();
+    };
+
+    function scheduleJapaneseAdvicePersist() {
+      if (
+        !japaneseAdvicePromise ||
+        !userMessagePromise ||
+        !userMessage?.messageId ||
+        japaneseAdvicePersistPromise
+      ) {
+        return;
+      }
+
+      japaneseAdvicePersistPromise = (async () => {
+        try {
+          await userMessagePromise.catch((error) => {
+            logger.warn('[ResumableAgentController] User message save failed before advice', {
+              error: error?.message ?? error,
+            });
+          });
+          const advice = await japaneseAdvicePromise;
+          await updateMessageJapaneseAdvice(userId, {
+            messageId: userMessage.messageId,
+            advice,
+          });
+          userMessage.metadata = {
+            ...(userMessage.metadata ?? {}),
+            japaneseAdvice: advice,
+          };
+          await GenerationJobManager.emitChunk(streamId, {
+            event: JAPANESE_ADVICE_EVENT,
+            data: {
+              conversationId,
+              messageId: userMessage.messageId,
+              advice,
+            },
+          });
+        } catch (error) {
+          logger.error('[ResumableAgentController] Failed to persist Japanese advice', error);
+        }
+      })();
+    }
+
+    // Start background generation immediately. The stream layer buffers and persists events
+    // until an SSE subscriber attaches, so generation no longer waits on subscriber readiness.
     /** Runs inside BaseClient immediately before it can start the completed
      * response write. A lost claim returns false, and BaseClient skips that
      * stale `unfinished:false` write entirely. The fallback invocation below
@@ -2051,6 +2136,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         const onStart = (userMsg, respMsgId, _isNewConvo) => {
           userMessage = userMsg;
           liveResponseMessageId = respMsgId;
+          startJapaneseAdvice(userMsg);
 
           // Store userMessage and responseMessageId upfront for resume capability
           GenerationJobManager.updateMetadata(
@@ -2764,6 +2850,23 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         }
         await eventActorTurn?.historyPersisted();
         eventActorPersistenceComplete = true;
+
+        // Check if our job was replaced by a new request before emitting
+        // This prevents stale requests from emitting events to newer jobs
+        const currentJob = await GenerationJobManager.getJob(streamId);
+        const jobWasReplaced = !currentJob || currentJob.createdAt !== jobCreatedAt;
+
+        if (!jobWasReplaced && japaneseAdvicePersistPromise) {
+          await Promise.race([japaneseAdvicePersistPromise, wait(1200)]);
+        }
+
+        if (jobWasReplaced) {
+          logger.debug(`[ResumableAgentController] Skipping FINAL emit - job was replaced`, {
+            streamId,
+            originalCreatedAt: jobCreatedAt,
+            currentCreatedAt: currentJob?.createdAt,
+          });
+        }
 
         // If the user stopped this turn — or an empty preempt boundary truncated
         // it, which persists under the same honest `unfinished` contract — cancel

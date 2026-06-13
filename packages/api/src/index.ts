@@ -90,8 +90,7 @@ export * from './tools';
 export * from './web';
 /* Langfuse */
 export * from './langfuse';
-/* Insights */
-export * from './insights';
+ @both
 /* Cache */
 export * from './cache';
 /* Shared Links */

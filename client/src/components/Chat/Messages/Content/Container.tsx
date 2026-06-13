@@ -1,7 +1,7 @@
 import { TMessage } from 'librechat-data-provider';
 import MessageQuotes from './MessageQuotes';
 import SkillPills from './SkillPills';
-import Files from './Files';
+ @both
 
 const Container = ({ children, message }: { children: React.ReactNode; message?: TMessage }) => (
   <div
@@ -14,6 +14,7 @@ const Container = ({ children, message }: { children: React.ReactNode; message?:
         <Files message={message} />
         <SkillPills skills={message.alwaysAppliedSkills} source="always-apply" />
         <SkillPills skills={message.manualSkills} source="manual" />
+        <JapaneseAdvicePanel message={message} />
       </>
     )}
     {children}

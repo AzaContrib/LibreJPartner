@@ -1,38 +1,56 @@
 import { useCallback } from 'react';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { replaceSpecialVars } from 'librechat-data-provider';
-import type { TMessage } from 'librechat-data-provider';
+import type {
+  TConversation,
+  TPromptGroup,
+  TJapaneseLearningProfile,
+} from 'librechat-data-provider';
 import { useChatContext, useChatFormContext, useAddedChatContext } from '~/Providers';
-import { useGetLatestMessage } from '~/hooks/Messages/useLatestMessage';
+import useSetIndexOptions from '~/hooks/Conversations/useSetIndexOptions';
+import { useLatestMessage } from '~/hooks/Messages/useLatestMessage';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { mainTextareaId } from '~/common';
 import store from '~/store';
+
+type SubmitMessageData = {
+  text: string;
+  conversationOverrides?: Partial<TConversation>;
+};
+
+function getPromptJapaneseLearningProfile(
+  group?: TPromptGroup | null,
+): TJapaneseLearningProfile | undefined {
+  if (group?.japaneseLearning?.enabled !== true) {
+    return undefined;
+  }
+
+  return {
+    enabled: true,
+    advisorEnabled: true,
+    learnerLevel: 'N5',
+    partnerRole: '',
+    targetRegister: 'auto',
+    ...group.japaneseLearning,
+  };
+}
 
 export default function useSubmitMessage() {
   const { user } = useAuthContext();
   const methods = useChatFormContext();
   const { conversation: addedConvo } = useAddedChatContext();
   const { ask, index, getMessages, setMessages } = useChatContext();
-  const getLatestMessage = useGetLatestMessage(index);
+  const { setOption } = useSetIndexOptions();
+  const latestMessage = useLatestMessage(index);
 
   const autoSendPrompts = useRecoilValue(store.autoSendPrompts);
   const setActivePrompt = useSetRecoilState(store.activePromptByIndex(index));
 
   const submitMessage = useCallback(
-    (data?: {
-      text: string;
-      overrideFiles?: TMessage['files'];
-      overrideQuotes?: string[];
-      overrideManualSkills?: string[];
-      overrideClientRequestId?: string;
-      overrideRecoverySteerId?: string;
-      overrideExpectedPredecessorCreatedAt?: number;
-      overrideQueuedMessageOrigin?: unknown;
-    }) => {
+    (data?: SubmitMessageData) => {
       if (!data) {
         return console.warn('No data provided to submitMessage');
       }
-      const latestMessage = getLatestMessage();
       const rootMessages = getMessages();
       const isLatestInRootMessages = rootMessages?.some(
         (message) => message.messageId === latestMessage?.messageId,
@@ -44,21 +62,10 @@ export default function useSubmitMessage() {
       const submitted = ask(
         {
           text: data.text,
-          ...(data.overrideRecoverySteerId != null && {
-            overrideUserMessageId: data.overrideRecoverySteerId,
-          }),
         },
         {
           addedConvo: addedConvo ?? undefined,
-          // Queued during-run messages carry their own consumed attachments,
-          // quote chips, and manual skill picks (undefined = drain composer).
-          overrideFiles: data.overrideFiles,
-          overrideQuotes: data.overrideQuotes,
-          overrideManualSkills: data.overrideManualSkills,
-          overrideClientRequestId: data.overrideClientRequestId,
-          overrideRecoverySteerId: data.overrideRecoverySteerId,
-          overrideExpectedPredecessorCreatedAt: data.overrideExpectedPredecessorCreatedAt,
-          overrideQueuedMessageOrigin: data.overrideQueuedMessageOrigin,
+          conversationOverrides: data.conversationOverrides,
         },
       );
       if (submitted === false) {
@@ -66,14 +73,21 @@ export default function useSubmitMessage() {
       }
       methods.reset();
     },
-    [ask, methods, addedConvo, setMessages, getMessages, getLatestMessage],
+    [ask, methods, addedConvo, setMessages, getMessages, latestMessage],
   );
 
   const submitPrompt = useCallback(
-    (text: string) => {
+    (text: string, group?: TPromptGroup | null) => {
       const parsedText = replaceSpecialVars({ text, user });
+      const japaneseLearning = getPromptJapaneseLearningProfile(group);
+      if (japaneseLearning) {
+        setOption('japaneseLearning')(japaneseLearning);
+      }
       if (autoSendPrompts) {
-        submitMessage({ text: parsedText });
+        submitMessage({
+          text: parsedText,
+          conversationOverrides: japaneseLearning ? { japaneseLearning } : undefined,
+        });
         return;
       }
 
@@ -82,7 +96,7 @@ export default function useSubmitMessage() {
       const newText = currentText.trim().length > 1 ? `\n${parsedText}` : parsedText;
       setActivePrompt(newText);
     },
-    [autoSendPrompts, submitMessage, setActivePrompt, methods, user],
+    [autoSendPrompts, submitMessage, setActivePrompt, methods, user, setOption],
   );
 
   return { submitMessage, submitPrompt };

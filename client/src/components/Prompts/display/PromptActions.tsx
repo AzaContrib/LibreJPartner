@@ -29,13 +29,13 @@ const PromptActions = ({ group, mainText, onUsePrompt }: PromptActionsProps) => 
     if (hasVariables) {
       setShowVariableDialog(true);
     } else {
-      submitPrompt(mainText);
+      submitPrompt(mainText, group);
       if (group._id) {
         recordUsage(group._id);
       }
       onUsePrompt?.();
     }
-  }, [hasVariables, submitPrompt, mainText, onUsePrompt, group._id, recordUsage]);
+  }, [hasVariables, submitPrompt, mainText, onUsePrompt, group, recordUsage]);
 
   const handleVariableDialogClose = useCallback(() => {
     setShowVariableDialog(false);

@@ -61,6 +61,7 @@ import EditBadges from './EditBadges';
 import BadgeRow from './BadgeRow';
 import Mention from './Mention';
 import store from '~/store';
+import JapaneseLearningButton from './JapaneseLearningButton';
 
 interface ChatFormProps {
   index: number;
@@ -727,6 +728,7 @@ const ChatForm = memo(function ChatForm({
                     Array.isArray(conversation?.messages) && conversation.messages.length >= 1
                   }
                 />
+                <JapaneseLearningButton conversation={conversation} disabled={disableInputs} />
                 <div className="mx-auto flex" />
                 <TokenUsage index={index} conversation={conversation} isSubmitting={isSubmitting} />
                 {SpeechToText && (
@@ -822,7 +824,7 @@ function ChatFormWrapper({
       conversation?.spec,
       conversation?.useResponsesApi,
       conversation?.model,
-      conversation?.maxContextTokens,
+ @both
       hasMessages,
     ],
   );

@@ -1,5 +1,5 @@
 import type * as t from './types';
-import { EndpointURLs } from './config';
+import { Constants, EndpointURLs } from './config';
 import * as s from './schemas';
 
 /** Resolves the browser's IANA timezone so the server can localize prompt variables. */
@@ -61,6 +61,10 @@ export default function createPayload(submission: t.TSubmission) {
     recoverySteerId,
     expectedPredecessorCreatedAt,
   };
+
+  if (s.isAgentsEndpoint(endpoint) && !payload.agent_id) {
+    payload.agent_id = Constants.EPHEMERAL_AGENT_ID;
+  }
 
   return { server, payload };
 }

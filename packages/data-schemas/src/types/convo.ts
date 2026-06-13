@@ -1,4 +1,4 @@
-import type { TSubagentThreadLineage } from 'librechat-data-provider';
+import type { TSubagentThreadLineage, TJapaneseLearningProfile } from 'librechat-data-provider';
 import type { Document, Types } from 'mongoose';
 import type { ICompactionSemanticIndexProjection } from './compaction';
 
@@ -40,166 +40,6 @@ export interface IAgentEventActorSkillIdentity {
   contentDigest?: string;
 }
 
-export interface IAgentEventActorSummary {
-  text: string;
-  tokenCount: number;
-}
-
-export interface IAgentEventActorContextMeta {
-  calibrationRatio: number;
-  encoding?: string;
-}
-
-/** Private committed checkpoint state for one event-bound child actor. */
-export interface IAgentEventActorState {
-  generation: number;
-  checkpoint: IAgentEventActorCheckpoint;
-  contextFingerprint?: IAgentEventActorContextFingerprint;
-  /** Bounded semantic Skill set needed to validate a warm continuation without history. */
-  skillManifest?: IAgentEventActorSkillIdentity[];
-  /** Bounded run-evolved tool-search state needed to rebuild the next model binding. */
-  discoveredToolNames?: string[];
-  /** Active compaction summary, which the SDK keeps outside checkpointed graph messages. */
-  summary?: IAgentEventActorSummary;
-  /** Pruner calibration carried by ordinary turns on the parent response message. */
-  contextMeta?: IAgentEventActorContextMeta;
-  /** Bounded advisory guidance replayed without reading durable message history. */
-  compactionSemanticIndex?: ICompactionSemanticIndexProjection;
-  previousCheckpoint?: IAgentEventActorCheckpoint;
-  /** Forces the next qualifying event to rebuild from durable message history. */
-  requiresColdStart?: boolean;
-}
-
-export interface IAgentEventActorReconciliation {
-  invocationId: string;
-  /** New-protocol executions acquire the delivery-owned action admission CAS
-   * before the external action may run. Absent only on mixed-version rows. */
-  actionAdmitted?: boolean;
-  status:
-    | 'invocation_pending'
-    | 'persistence_pending'
-    | 'history_persisted'
-    | 'commit_conflict'
-    | 'commit_indeterminate'
-    | 'persistence_failed'
-    | 'settled';
-  checkpoint: Omit<IAgentEventActorCheckpoint, 'checkpointId'> & { checkpointId?: string };
-  action: { toolName: string; toolCallId?: string };
-  error?: string;
-  /** How a retained receipt reached `settled`. Absent on active lifecycle rows. */
-  resolution?: 'checkpoint_verified' | 'action_compensated' | 'history_repaired';
-  observedAt: Date;
-}
-
-/**
- * Durable fence covering one legacy-path turn from before its execution until
- * its history is persisted. While present, no fork may execute or commit — the
- * turn's messages are not yet durable, so any rebuild would be incomplete. A
- * crash leaves the token in place (fail-closed) until it is reclaimed.
- */
-export interface IAgentEventActorLegacyTurn {
-  token: string;
-  startedAt: Date;
-}
-
-/** JSON-safe value retained inside SDK-issued event-actor evidence. */
-export type TAgentEventActorEvent =
-  | null
-  | boolean
-  | number
-  | string
-  | TAgentEventActorEvent[]
-  | { [key: string]: TAgentEventActorEvent };
-
-export interface IAgentEventActorInvocationReference {
-  actorThreadId: string;
-  invocationId: string;
-  depth: number;
-  continuation: 'warm' | 'cold';
-  base: {
-    actorThreadId: string;
-    generation: number;
-    checkpoint?: Omit<IAgentEventActorCheckpoint, 'checkpointId'> & { checkpointId?: string };
-  };
-  fork: Omit<IAgentEventActorCheckpoint, 'checkpointId'> & {
-    checkpointId?: string;
-    invocationId: string;
-  };
-}
-
-/** Exact, signed SDK evidence for a paused invocation fork. */
-export interface IAgentEventActorSuspensionEvidence {
-  version: 1;
-  suspensionId: string;
-  attempt: number;
-  issuedAt: number;
-  expiresAt: number;
-  invocation: IAgentEventActorInvocationReference;
-  checkpoint: IAgentEventActorInvocationReference['fork'];
-  interrupt: {
-    id: string;
-    payload: TAgentEventActorEvent;
-  };
-  suspensionDigest: string;
-}
-
-/**
- * Host-owned current suspension fence. SDK evidence authenticates the fork;
- * the mirrored action/job identity binds it to LibreChat's approval CAS.
- */
-export interface IAgentEventActorSuspension {
-  suspension: IAgentEventActorSuspensionEvidence;
-  /** Host-side reason for suspension. Missing legacy values are human decisions. */
-  kind?: 'human_decision' | 'internal_completion';
-  /** Expected-action evidence already applied before a later re-pause. */
-  appliedAction?: {
-    toolName: string;
-    toolCallId?: string;
-  };
-  /** Original delivery-handling generation retained across resumed generations. */
-  handlingGenerationCreatedAt?: number;
-  actionId: string;
-  jobCreatedAt: number;
-  status: 'pending' | 'claimed' | 'closed';
-  resumeAttemptId?: string;
-  outcome?: 'committed' | 'stale' | 'settled' | 'cancelled';
-  closedAt?: Date;
-  observedAt: Date;
-}
-
-export interface IAgentEventActorSnapshot {
-  state: IAgentEventActorState | null;
-  reconciliations: IAgentEventActorReconciliation[];
-  legacyTurn: IAgentEventActorLegacyTurn | null;
-  suspension: IAgentEventActorSuspension | null;
-  /** Durable invalidation epoch. Every legacy-path event bumps it — including
-   * for headless or already cold-marked actors, where the marker alone leaves
-   * no CAS-visible trace — and the commit CAS requires the epoch observed at
-   * preparation, so a stale fork can never commit state built from history
-   * read before an intervening legacy turn. */
-  epoch: number;
-}
-
-export interface IAgentEventBindingRecord {
-  conversationId: string;
-  agentId: string;
-  tenantId?: string;
-  isTemporary?: boolean;
-  expiredAt?: Date;
-  binding: IAgentEventBinding;
-  lineage: TSubagentThreadLineage;
-}
-
-export interface IActiveSubagentThreadLease {
-  conversationId: string;
-  parentConversationId: string;
-  taskId: string;
-}
-
-export interface ISubagentThreadReservation {
-  conversation: IConversation;
-  created: boolean;
-}
 
 // @ts-ignore
 export interface IConversation extends Document {
@@ -278,6 +118,7 @@ export interface IConversation extends Document {
   url_context?: boolean;
   disableStreaming?: boolean;
   fileTokenLimit?: number;
+  japaneseLearning?: TJapaneseLearningProfile;
   // Additional fields
   files?: string[];
   expiredAt?: Date;

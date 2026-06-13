@@ -1,6 +1,7 @@
 import type {
   TFeedbackRating,
   TFeedbackTag,
+  TJapaneseAdvice,
   UserSubmittedMessageFieldPath,
 } from 'librechat-data-provider';
 import type { Document } from 'mongoose';
@@ -41,6 +42,7 @@ export interface ISubagentTaskControlReceipt {
   message?: string;
   messageTruncated?: boolean;
 }
+
 
 // @ts-ignore
 export interface IMessage extends Document {
@@ -88,7 +90,10 @@ export interface IMessage extends Document {
   thread_id?: string;
   iconURL?: string;
   addedConvo?: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    japaneseAdvice?: TJapaneseAdvice;
+    [key: string]: unknown;
+  };
   /** Server-private canonical message delta for durable subagent-thread continuation. */
   subagentTranscript?: {
     taskId: string;

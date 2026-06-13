@@ -1,3 +1,4 @@
+import type { TJapaneseLearningProfile } from 'librechat-data-provider';
 import type { Document, Types } from 'mongoose';
 
 export interface IPrompt extends Document {
@@ -15,6 +16,7 @@ export interface IPromptGroup {
   numberOfGenerations: number;
   oneliner: string;
   category: string;
+  japaneseLearning?: TJapaneseLearningProfile;
   productionId: Types.ObjectId;
   author: Types.ObjectId;
   authorName: string;
