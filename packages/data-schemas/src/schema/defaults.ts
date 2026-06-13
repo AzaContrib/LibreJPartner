@@ -180,6 +180,10 @@ export const conversationPreset: {
   verbosity: {
     type: StringConstructor;
   };
+  japaneseLearning: {
+    type: typeof Schema.Types.Mixed;
+    default: undefined;
+  };
 } = {
   endpoint: {
     type: String,
@@ -338,5 +342,9 @@ export const conversationPreset: {
   /** Verbosity control */
   verbosity: {
     type: String,
+  },
+  japaneseLearning: {
+    type: Schema.Types.Mixed,
+    default: undefined,
   },
 };

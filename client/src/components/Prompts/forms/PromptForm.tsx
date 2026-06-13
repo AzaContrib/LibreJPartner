@@ -11,7 +11,12 @@ import {
   PermissionBits,
   PermissionTypes,
 } from 'librechat-data-provider';
-import type { TCreatePrompt, TPrompt, TPromptGroup } from 'librechat-data-provider';
+import type {
+  TPrompt,
+  TCreatePrompt,
+  TPromptGroup,
+  TJapaneseLearningProfile,
+} from 'librechat-data-provider';
 import {
   useGetPrompts,
   useGetPromptGroup,
@@ -20,6 +25,7 @@ import {
   useMakePromptProduction,
 } from '~/data-provider';
 import { useResourcePermissions, useHasAccess, useLocalize, useFocusTrap } from '~/hooks';
+import JapaneseSettings, { normalizeJapaneseLearningProfile } from '~/components/Japanese/Settings';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
 import CategorySelector from '../fields/CategorySelector';
 import PromptVariables from '../display/PromptVariables';
@@ -178,6 +184,13 @@ const HeaderActions = React.memo(
 
 HeaderActions.displayName = 'HeaderActions';
 
+type PromptFormValues = {
+  prompt: string;
+  promptName: string;
+  category: string;
+  japaneseLearning: TJapaneseLearningProfile;
+};
+
 const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
   const params = useParams();
   const localize = useLocalize();
@@ -220,15 +233,17 @@ const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
   const canDelete = hasPermission(PermissionBits.DELETE);
   const canView = hasPermission(PermissionBits.VIEW);
 
-  const methods = useForm({
+  const methods = useForm<PromptFormValues>({
     defaultValues: {
       prompt: '',
       promptName: group ? group.name : '',
       category: group ? group.category : '',
+      japaneseLearning: normalizeJapaneseLearningProfile(group?.japaneseLearning),
     },
   });
   const { handleSubmit, setValue, reset, watch } = methods;
   const promptText = watch('prompt');
+  const japaneseLearning = watch('japaneseLearning');
 
   const selectedPrompt = useMemo(
     () => (prompts.length > 0 ? prompts[selectionIndex] : undefined),
@@ -253,6 +268,8 @@ const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
         {
           prompt: variables.prompt.prompt,
           category: group?.category || '',
+          promptName: group?.name || '',
+          japaneseLearning: normalizeJapaneseLearningProfile(group?.japaneseLearning),
         },
         { keepDirtyValues: true },
       );
@@ -270,6 +287,7 @@ const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
         prompt: data.prompt.prompt,
         promptName: group?.name || '',
         category: group?.category || '',
+        japaneseLearning: normalizeJapaneseLearningProfile(group?.japaneseLearning),
       });
     },
   });
@@ -335,7 +353,11 @@ const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
 
   useEffect(() => {
     setValue('prompt', selectedPrompt ? selectedPrompt.prompt : '', { shouldDirty: false });
-    setValue('category', group ? group.category : '', { shouldDirty: false });
+    setValue('category', group?.category ?? '', { shouldDirty: false });
+    setValue('promptName', group ? group.name : '', { shouldDirty: false });
+    setValue('japaneseLearning', normalizeJapaneseLearningProfile(group?.japaneseLearning), {
+      shouldDirty: false,
+    });
   }, [selectedPrompt, group, setValue]);
 
   useEffect(() => {
@@ -411,6 +433,20 @@ const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
       debouncedUpdateCommand(group._id, command, updateGroupMutation.mutate);
     },
     [group, updateGroupMutation.mutate, debouncedUpdateCommand],
+  );
+
+  const handleUpdateJapaneseLearning = useCallback(
+    (profile: TJapaneseLearningProfile, persist: boolean) => {
+      setValue('japaneseLearning', profile, { shouldDirty: true });
+      if (!persist || !group?._id) {
+        return;
+      }
+      updateGroupMutation.mutate({
+        id: group._id,
+        payload: { japaneseLearning: profile },
+      });
+    },
+    [group?._id, setValue, updateGroupMutation],
   );
 
   const handleCategoryChange = useCallback(
@@ -555,6 +591,12 @@ const PromptForm = ({ promptId: promptIdProp }: { promptId?: string }) => {
                       initialValue={group.command ?? ''}
                       onValueChange={canEdit ? handleUpdateCommand : undefined}
                       disabled={!canEdit}
+                    />
+                    <JapaneseSettings
+                      profile={japaneseLearning}
+                      onChange={handleUpdateJapaneseLearning}
+                      disabled={!canEdit}
+                      showAdvisorModel
                     />
                   </div>
                 )}

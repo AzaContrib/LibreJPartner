@@ -1,4 +1,5 @@
 import { RetentionMode } from 'librechat-data-provider';
+import type { TJapaneseAdvice } from 'librechat-data-provider';
 import type { DeleteResult, FilterQuery, Model } from 'mongoose';
 import type { AppConfig, IMessage } from '~/types';
 import { createTempChatExpirationDate } from '~/utils/tempChatRetention';
@@ -33,6 +34,10 @@ export interface MessageMethods {
     message: Partial<IMessage> & { newMessageId?: string },
     metadata?: { context?: string },
   ): Promise<Partial<IMessage>>;
+  updateMessageJapaneseAdvice(
+    userId: string,
+    params: { messageId: string; advice: TJapaneseAdvice },
+  ): Promise<Pick<IMessage, 'messageId' | 'conversationId' | 'metadata'>>;
   deleteMessagesSince(
     userId: string,
     params: { messageId: string; conversationId: string },
@@ -296,6 +301,33 @@ export function createMessageMethods(mongoose: typeof import('mongoose')): Messa
     }
   }
 
+  async function updateMessageJapaneseAdvice(
+    userId: string,
+    { messageId, advice }: { messageId: string; advice: TJapaneseAdvice },
+  ) {
+    try {
+      const Message = mongoose.models.Message as Model<IMessage>;
+      const updatedMessage = await Message.findOneAndUpdate(
+        { messageId, user: userId },
+        { $set: { 'metadata.japaneseAdvice': advice } },
+        { new: true },
+      ).lean<Pick<IMessage, 'messageId' | 'conversationId' | 'metadata'>>();
+
+      if (!updatedMessage) {
+        throw new Error('Message not found or user not authorized.');
+      }
+
+      return {
+        messageId: updatedMessage.messageId,
+        conversationId: updatedMessage.conversationId,
+        metadata: updatedMessage.metadata,
+      };
+    } catch (err) {
+      logger.error('Error updating message Japanese advice:', err);
+      throw err;
+    }
+  }
+
   /**
    * Deletes messages in a conversation since a specific message.
    */
@@ -421,6 +453,7 @@ export function createMessageMethods(mongoose: typeof import('mongoose')): Messa
     recordMessage,
     updateMessageText,
     updateMessage,
+    updateMessageJapaneseAdvice,
     deleteMessagesSince,
     getMessages,
     getMessage,

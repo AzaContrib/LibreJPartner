@@ -236,6 +236,7 @@ export default function useChatFunctions({
       overrideFiles,
       targetResponseMessageId,
       overrideManualSkills,
+      conversationOverrides,
       addedConvo,
     } = {},
   ) => {
@@ -247,6 +248,9 @@ export default function useChatFunctions({
     }
 
     const conversation = cloneDeep(immutableConversation);
+    if (conversation && conversationOverrides) {
+      Object.assign(conversation, conversationOverrides);
+    }
 
     const endpoint = conversation?.endpoint;
     if (endpoint === null) {

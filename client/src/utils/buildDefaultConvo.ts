@@ -1,4 +1,5 @@
 import {
+  Constants,
   parseConvo,
   EModelEndpoint,
   isAgentsEndpoint,
@@ -77,6 +78,9 @@ const buildDefaultConvo = ({
     (!defaultAgentId || isEphemeralAgentId(defaultAgentId))
   ) {
     defaultConvo.agent_id = agentId;
+  }
+  if (isAgentsEndpoint(endpoint) && !defaultConvo.agent_id) {
+    defaultConvo.agent_id = Constants.EPHEMERAL_AGENT_ID;
   }
 
   // Clear model for non-ephemeral agents - agents use their configured model internally

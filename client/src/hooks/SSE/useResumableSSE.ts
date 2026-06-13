@@ -455,6 +455,7 @@ export default function useResumableSSE(
     contentHandler,
     createdHandler,
     titleHandler,
+    japaneseAdviceHandler,
     syncStepMessage,
     attachmentHandler,
     resetContentHandler,
@@ -589,6 +590,11 @@ export default function useResumableSSE(
             return;
           }
 
+          if (data.event === 'japanese_advice') {
+            japaneseAdviceHandler(data);
+            return;
+          }
+
           if (data.event != null) {
             if (!isResume && !createdStreamIdsRef.current.has(currentStreamId)) {
               if (isOAuthStepEvent(data)) {
@@ -700,7 +706,11 @@ export default function useResumableSSE(
                 `[ResumableSSE] Replaying ${data.resumeState.replayEvents.length} resume events`,
               );
               for (const replayEvent of data.resumeState.replayEvents) {
-                if (replayEvent.event != null) {
+                if (replayEvent.event === 'title') {
+                  titleHandler(replayEvent);
+                } else if (replayEvent.event === 'japanese_advice') {
+                  japaneseAdviceHandler(replayEvent);
+                } else if (replayEvent.event != null) {
                   stepHandler(replayEvent, resumeSubmission);
                 }
               }
@@ -711,6 +721,8 @@ export default function useResumableSSE(
               for (const pendingEvent of data.pendingEvents) {
                 if (pendingEvent.event === 'title') {
                   titleHandler(pendingEvent);
+                } else if (pendingEvent.event === 'japanese_advice') {
+                  japaneseAdviceHandler(pendingEvent);
                 } else if (pendingEvent.event != null) {
                   stepHandler(pendingEvent, resumeSubmission);
                 } else if (pendingEvent.type != null) {
@@ -980,6 +992,7 @@ export default function useResumableSSE(
       createdHandler,
       attachmentHandler,
       titleHandler,
+      japaneseAdviceHandler,
       stepHandler,
       contentHandler,
       resetContentHandler,

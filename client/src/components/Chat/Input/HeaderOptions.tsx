@@ -9,6 +9,7 @@ import { useSetIndexOptions, useLocalize } from '~/hooks';
 import { useGetEndpointsQuery } from '~/data-provider';
 import OptionsPopover from './OptionsPopover';
 import PopoverButtons from './PopoverButtons';
+import JapaneseLearningSettings from './JapaneseLearningSettings';
 import { useChatContext } from '~/Providers';
 
 export default function HeaderOptions({
@@ -77,6 +78,7 @@ export default function HeaderOptions({
                     setOption={setOption}
                   />
                   <AlternativeSettings conversation={conversation} setOption={setOption} />
+                  <JapaneseLearningSettings conversation={conversation} setOption={setOption} />
                 </div>
               </OptionsPopover>
             )}

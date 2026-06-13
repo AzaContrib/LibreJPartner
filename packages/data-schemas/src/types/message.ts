@@ -1,5 +1,5 @@
 import type { Document } from 'mongoose';
-import type { TFeedbackRating, TFeedbackTag } from 'librechat-data-provider';
+import type { TFeedbackRating, TFeedbackTag, TJapaneseAdvice } from 'librechat-data-provider';
 
 // @ts-ignore
 export interface IMessage extends Document {
@@ -39,7 +39,10 @@ export interface IMessage extends Document {
   thread_id?: string;
   iconURL?: string;
   addedConvo?: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    japaneseAdvice?: TJapaneseAdvice;
+    [key: string]: unknown;
+  };
   contextMeta?: {
     calibrationRatio?: number;
     encoding?: string;

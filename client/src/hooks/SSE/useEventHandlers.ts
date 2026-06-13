@@ -18,6 +18,7 @@ import type {
   TConversation,
   EventSubmission,
   TStartupConfig,
+  TJapaneseAdvice,
 } from 'librechat-data-provider';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { SetterOrUpdater } from 'recoil';
@@ -65,8 +66,34 @@ type TTitleEvent = {
   };
 };
 
+type TJapaneseAdviceEvent = {
+  event: 'japanese_advice';
+  data?: {
+    conversationId?: string;
+    messageId?: string;
+    advice?: TJapaneseAdvice;
+  };
+};
+
+const JAPANESE_ADVICE_REFRESH_DELAYS = [2000, 6000, 12000, 20000] as const;
+
 const hasRealTitle = (title?: string | null): title is string =>
   title != null && title !== '' && title !== 'New Chat';
+
+function isJapaneseAdvisorEnabled(
+  conversation?: Pick<TConversation, 'japaneseLearning'> | null,
+): boolean {
+  const profile = conversation?.japaneseLearning;
+  return profile?.enabled === true && profile.advisorEnabled !== false;
+}
+
+function hasJapaneseAdvice(messages: TMessage[] | undefined, messageId: string): boolean {
+  return (
+    messages?.some(
+      (message) => message.messageId === messageId && message.metadata?.japaneseAdvice != null,
+    ) === true
+  );
+}
 
 export const buildCreatedInitialResponse = ({
   initialResponse,
@@ -309,6 +336,7 @@ export default function useEventHandlers({
    *    - id → undefined (route teardown / navigate away) */
   const lastConversationIdRef = useRef<string | null | undefined>(paramId);
   const preserveSubagentAtomsForNewConvoIdRef = useRef<string | null>(null);
+  const japaneseAdviceRefreshTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
     const previous = lastConversationIdRef.current;
     const preserveNewConversationId = preserveSubagentAtomsForNewConvoIdRef.current;
@@ -330,6 +358,10 @@ export default function useEventHandlers({
   useEffect(
     () => () => {
       resetSubagentAtoms();
+      for (const timer of japaneseAdviceRefreshTimersRef.current) {
+        clearTimeout(timer);
+      }
+      japaneseAdviceRefreshTimersRef.current = [];
     },
     [resetSubagentAtoms],
   );
@@ -600,6 +632,73 @@ export default function useEventHandlers({
     [queryClient, location.pathname, setConversation, isAddedRequest],
   );
 
+  const japaneseAdviceHandler = useCallback(
+    (event: TJapaneseAdviceEvent) => {
+      const { conversationId, messageId, advice } = event.data ?? {};
+      if (!conversationId || !messageId || !advice) {
+        return;
+      }
+
+      const updateMessageAdvice = (messages?: TMessage[]) =>
+        messages?.map((message) =>
+          message.messageId === messageId
+            ? {
+                ...message,
+                metadata: {
+                  ...(message.metadata ?? {}),
+                  japaneseAdvice: advice,
+                },
+              }
+            : message,
+        );
+
+      const currentMessages = getMessages();
+      if (currentMessages?.some((message) => message.messageId === messageId)) {
+        setMessages(updateMessageAdvice(currentMessages) ?? currentMessages);
+      }
+
+      queryClient.setQueryData<TMessage[]>(
+        [QueryKeys.messages, conversationId],
+        updateMessageAdvice,
+      );
+    },
+    [getMessages, queryClient, setMessages],
+  );
+
+  const scheduleJapaneseAdviceRefresh = useCallback(
+    ({
+      conversationId,
+      messageId,
+    }: {
+      conversationId?: string | null;
+      messageId?: string | null;
+    }) => {
+      if (!conversationId || !messageId) {
+        return;
+      }
+
+      for (const delay of JAPANESE_ADVICE_REFRESH_DELAYS) {
+        const timer = setTimeout(() => {
+          japaneseAdviceRefreshTimersRef.current = japaneseAdviceRefreshTimersRef.current.filter(
+            (currentTimer) => currentTimer !== timer,
+          );
+
+          const cachedMessages = queryClient.getQueryData<TMessage[]>([
+            QueryKeys.messages,
+            conversationId,
+          ]);
+          if (hasJapaneseAdvice(cachedMessages, messageId)) {
+            return;
+          }
+
+          queryClient.invalidateQueries([QueryKeys.messages, conversationId]);
+        }, delay);
+        japaneseAdviceRefreshTimersRef.current.push(timer);
+      }
+    },
+    [queryClient],
+  );
+
   const finalHandler = useCallback(
     (data: TFinalResData, submission: EventSubmission) => {
       const { requestMessage, responseMessage, conversation, runMessages } = data;
@@ -759,6 +858,22 @@ export default function useEventHandlers({
           );
         }
 
+        const finalConversationId =
+          conversation.conversationId ??
+          requestMessage?.conversationId ??
+          submissionConvo.conversationId;
+        if (
+          requestMessage?.isCreatedByUser === true &&
+          (isJapaneseAdvisorEnabled(serverConversation) ||
+            isJapaneseAdvisorEnabled(submissionConvo)) &&
+          !hasJapaneseAdvice(finalMessages, requestMessage.messageId)
+        ) {
+          scheduleJapaneseAdviceRefresh({
+            conversationId: finalConversationId,
+            messageId: requestMessage.messageId,
+          });
+        }
+
         if (isNewConvo && submissionConvo.conversationId) {
           removeConvoFromAllQueries(queryClient, submissionConvo.conversationId);
         }
@@ -840,6 +955,7 @@ export default function useEventHandlers({
       location.pathname,
       applyAgentTemplate,
       attachmentHandler,
+      scheduleJapaneseAdviceRefresh,
     ],
   );
 
@@ -1075,6 +1191,7 @@ export default function useEventHandlers({
     contentHandler,
     createdHandler,
     titleHandler,
+    japaneseAdviceHandler,
     syncStepMessage,
     attachmentHandler,
     abortConversation,

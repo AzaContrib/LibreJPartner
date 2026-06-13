@@ -1,5 +1,5 @@
 import type * as t from './types';
-import { EndpointURLs } from './config';
+import { Constants, EndpointURLs } from './config';
 import * as s from './schemas';
 
 export default function createPayload(submission: t.TSubmission) {
@@ -43,6 +43,10 @@ export default function createPayload(submission: t.TSubmission) {
     ephemeralAgent: s.isAssistantsEndpoint(endpoint) ? undefined : ephemeralAgent,
     manualSkills: s.isAssistantsEndpoint(endpoint) ? undefined : manualSkills,
   };
+
+  if (s.isAgentsEndpoint(endpoint) && !payload.agent_id) {
+    payload.agent_id = Constants.EPHEMERAL_AGENT_ID;
+  }
 
   return { server, payload };
 }

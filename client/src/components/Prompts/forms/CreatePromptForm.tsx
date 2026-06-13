@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, FormProvider } from 'react-hook-form';
 import { Button, TextareaAutosize, Input, useMediaQuery } from '@librechat/client';
 import { LocalStorageKeys, PermissionTypes, Permissions } from 'librechat-data-provider';
+import type { TCreatePrompt, TJapaneseLearningProfile } from 'librechat-data-provider';
+import JapaneseSettings, { defaultJapaneseLearningProfile } from '~/components/Japanese/Settings';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
 import VariablesDropdown from '../editor/VariablesDropdown';
 import CategorySelector from '../fields/CategorySelector';
@@ -22,6 +24,7 @@ type CreateFormValues = {
   category: string;
   oneliner?: string;
   command?: string;
+  japaneseLearning: TJapaneseLearningProfile;
 };
 
 const defaultPrompt: CreateFormValues = {
@@ -31,6 +34,7 @@ const defaultPrompt: CreateFormValues = {
   category: '',
   oneliner: undefined,
   command: undefined,
+  japaneseLearning: defaultJapaneseLearningProfile,
 };
 
 const CreatePromptForm = ({
@@ -62,10 +66,11 @@ const CreatePromptForm = ({
     };
   }, [hasAccess, navigate, onSuccess]);
 
-  const methods = useForm({
+  const methods = useForm<CreateFormValues>({
     defaultValues: {
       ...defaultValues,
       category: localStorage.getItem(LocalStorageKeys.LAST_PROMPT_CATEGORY) ?? '',
+      japaneseLearning: defaultValues.japaneseLearning ?? defaultJapaneseLearningProfile,
     },
   });
 
@@ -89,12 +94,11 @@ const CreatePromptForm = ({
 
   const promptText = watch('prompt');
 
+  const japaneseLearning = watch('japaneseLearning');
+
   const onSubmit = (data: CreateFormValues) => {
-    const { name, category, oneliner, command, ...rest } = data;
-    const groupData = { name, category } as Pick<
-      CreateFormValues,
-      'name' | 'category' | 'oneliner' | 'command'
-    >;
+    const { name, category, oneliner, command, japaneseLearning, ...rest } = data;
+    const groupData: NonNullable<TCreatePrompt['group']> = { name, category, japaneseLearning };
     if ((oneliner?.length ?? 0) > 0) {
       groupData.oneliner = oneliner;
     }
@@ -212,6 +216,13 @@ const CreatePromptForm = ({
             tabIndex={0}
           />
           <Command onValueChange={(value) => methods.setValue('command', value)} tabIndex={0} />
+          <JapaneseSettings
+            profile={japaneseLearning}
+            onChange={(nextProfile) =>
+              methods.setValue('japaneseLearning', nextProfile, { shouldDirty: true })
+            }
+            showAdvisorModel
+          />
           <div className="mt-4 flex justify-end">
             <Button
               aria-label={localize('com_ui_create_prompt')}

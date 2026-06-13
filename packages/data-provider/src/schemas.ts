@@ -709,6 +709,49 @@ export const tExampleSchema = z.object({
 
 export type TExample = z.infer<typeof tExampleSchema>;
 
+export const japaneseLearningLevelSchema = z.enum(['N5', 'N4', 'N3', 'N2', 'N1']);
+export const japaneseLearningRegisterSchema = z.enum(['auto', 'casual', 'polite', 'formal']);
+
+export const japaneseLearningProfileSchema = z.object({
+  enabled: z.boolean().optional(),
+  advisorEnabled: z.boolean().optional(),
+  learnerLevel: japaneseLearningLevelSchema.optional(),
+  partnerRole: z.string().max(500).optional(),
+  targetRegister: japaneseLearningRegisterSchema.optional(),
+  advisorModel: z.string().max(100).optional(),
+});
+
+export const japaneseAdviceIssueSchema = z.object({
+  original: z.string(),
+  suggestion: z.string(),
+  explanationEnglish: z.string(),
+  severity: z.enum(['minor', 'major']).optional(),
+});
+
+export const japaneseAdviceSchema = z.object({
+  status: z.enum(['ok', 'needs_improvement', 'skipped', 'error']),
+  targetRegister: japaneseLearningRegisterSchema.optional(),
+  correctedJapanese: z.string().optional(),
+  naturalJapanese: z.string().optional(),
+  summaryEnglish: z.string().optional(),
+  issues: z.array(japaneseAdviceIssueSchema).optional(),
+  checkedAt: z.string().optional(),
+  model: z.string().optional(),
+  error: z.string().optional(),
+});
+
+export type TJapaneseLearningLevel = z.infer<typeof japaneseLearningLevelSchema>;
+export type TJapaneseLearningRegister = z.infer<typeof japaneseLearningRegisterSchema>;
+export type TJapaneseLearningProfile = z.infer<typeof japaneseLearningProfileSchema>;
+export type TJapaneseAdviceIssue = z.infer<typeof japaneseAdviceIssueSchema>;
+export type TJapaneseAdvice = z.infer<typeof japaneseAdviceSchema>;
+
+export const tMessageMetadataSchema = z
+  .object({
+    japaneseAdvice: japaneseAdviceSchema.optional(),
+  })
+  .catchall(z.unknown());
+
 export const tMessageSchema = z.object({
   messageId: z.string(),
   endpoint: z.string().optional(),
@@ -747,7 +790,7 @@ export const tMessageSchema = z.object({
   iconURL: z.string().nullable().optional(),
   feedback: feedbackSchema.optional(),
   /** metadata */
-  metadata: z.record(z.unknown()).optional(),
+  metadata: tMessageMetadataSchema.optional(),
   contextMeta: z
     .object({
       calibrationRatio: z
@@ -938,6 +981,7 @@ export const tConversationSchema = z.object({
   isTemporary: z.boolean().optional(),
   /* file token limits */
   fileTokenLimit: coerceNumber.optional(),
+  japaneseLearning: japaneseLearningProfileSchema.optional(),
   /** @deprecated */
   resendImages: z.boolean().optional(),
   /** @deprecated Prefer `modelLabel` over `chatGptLabel` */
@@ -1094,9 +1138,15 @@ export type TModelSpecPreset = z.infer<typeof tModelSpecPresetSchema>;
 
 export type TPreset = z.infer<typeof tPresetSchema>;
 
-export type TSetOption = (
-  param: number | string,
-) => (newValue: number | string | boolean | string[] | Partial<TPreset>) => void;
+export type TConversationOptionValue =
+  | number
+  | string
+  | boolean
+  | string[]
+  | Partial<TPreset>
+  | TJapaneseLearningProfile;
+
+export type TSetOption = (param: number | string) => (newValue: TConversationOptionValue) => void;
 
 export type TConversation = z.infer<typeof tConversationSchema> & {
   presetOverride?: Partial<TPreset>;
@@ -1147,6 +1197,7 @@ export const googleBaseSchema = tConversationSchema.pick({
   greeting: true,
   spec: true,
   maxContextTokens: true,
+  japaneseLearning: true,
 });
 
 export const googleSchema = googleBaseSchema
@@ -1210,6 +1261,7 @@ const assistantBaseSchema = tConversationSchema.pick({
   greeting: true,
   spec: true,
   append_current_datetime: true,
+  japaneseLearning: true,
 });
 
 export const assistantSchema = assistantBaseSchema
@@ -1245,6 +1297,7 @@ const compactAssistantBaseSchema = tConversationSchema.pick({
   iconURL: true,
   greeting: true,
   spec: true,
+  japaneseLearning: true,
 });
 
 export const compactAssistantSchema = compactAssistantBaseSchema
@@ -1267,6 +1320,7 @@ export const agentsBaseSchema = tConversationSchema.pick({
   iconURL: true,
   greeting: true,
   maxContextTokens: true,
+  japaneseLearning: true,
 });
 
 export const agentsSchema = agentsBaseSchema
@@ -1331,6 +1385,7 @@ export const openAIBaseSchema = tConversationSchema.pick({
   web_search: true,
   disableStreaming: true,
   fileTokenLimit: true,
+  japaneseLearning: true,
 });
 
 export const openAISchema = openAIBaseSchema
@@ -1386,6 +1441,7 @@ export const anthropicBaseSchema = tConversationSchema.pick({
   fileTokenLimit: true,
   stop: true,
   stream: true,
+  japaneseLearning: true,
 });
 
 export const anthropicSchema = anthropicBaseSchema
@@ -1413,6 +1469,7 @@ export const compactAgentsBaseSchema = tConversationSchema.pick({
   agent_id: true,
   instructions: true,
   additional_instructions: true,
+  japaneseLearning: true,
 });
 
 export const compactAgentsSchema = compactAgentsBaseSchema

@@ -59,7 +59,7 @@ function PromptsCommand({
 }: {
   index: number;
   textAreaRef: React.MutableRefObject<HTMLTextAreaElement | null>;
-  submitPrompt: (textPrompt: string) => void;
+  submitPrompt: (textPrompt: string, group?: TPromptGroup | null) => void;
 }) {
   const localize = useLocalize();
   const { mutate: recordUsage } = useRecordPromptUsage();
@@ -118,7 +118,7 @@ function PromptsCommand({
         setVariableDialogOpen(true);
         return;
       } else {
-        submitPrompt(group.productionPrompt?.prompt ?? '');
+        submitPrompt(group.productionPrompt?.prompt ?? '', group);
         if (group._id) {
           recordUsage(group._id);
         }

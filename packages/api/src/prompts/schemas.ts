@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Constants } from 'librechat-data-provider';
+import { Constants, japaneseLearningProfileSchema } from 'librechat-data-provider';
 
 /**
  * Schema for validating prompt group update payloads.
@@ -16,6 +16,8 @@ export const updatePromptGroupSchema: z.ZodObject<
     category: z.ZodOptional<z.ZodString>;
     /** Command shortcut for the prompt group */
     command: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    /** Japanese advisor settings for prompt usage */
+    japaneseLearning: z.ZodOptional<typeof japaneseLearningProfileSchema>;
   },
   'strict'
 > = z
@@ -35,6 +37,8 @@ export const updatePromptGroupSchema: z.ZodObject<
       })
       .optional()
       .nullable(),
+    /** Japanese advisor settings for prompt usage */
+    japaneseLearning: japaneseLearningProfileSchema.optional(),
   })
   .strict();
 
@@ -56,19 +60,8 @@ export function validatePromptGroupUpdate(data: unknown): TUpdatePromptGroupSche
  * @param data - The raw request body to validate
  * @returns A SafeParseResult with either the validated data or validation errors
  */
-export function safeValidatePromptGroupUpdate(data: unknown): z.SafeParseReturnType<
-  {
-    name?: string | undefined;
-    category?: string | undefined;
-    command?: string | null | undefined;
-    oneliner?: string | undefined;
-  },
-  {
-    name?: string | undefined;
-    category?: string | undefined;
-    command?: string | null | undefined;
-    oneliner?: string | undefined;
-  }
-> {
+export function safeValidatePromptGroupUpdate(
+  data: unknown,
+): z.SafeParseReturnType<unknown, TUpdatePromptGroupSchema> {
   return updatePromptGroupSchema.safeParse(data);
 }

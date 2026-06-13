@@ -41,6 +41,53 @@ export const useUpdateConversationMutation = (
   );
 };
 
+export const useUpdateJapaneseLearningMutation = (
+  id: string,
+): UseMutationResult<
+  t.TUpdateJapaneseLearningResponse,
+  unknown,
+  t.TUpdateJapaneseLearningRequest,
+  unknown
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: t.TUpdateJapaneseLearningRequest) => dataService.updateJapaneseLearning(payload),
+    {
+      onSuccess: (updatedConvo, payload) => {
+        const targetId = payload.conversationId || id;
+        queryClient.setQueryData([QueryKeys.conversation, targetId], updatedConvo);
+        updateConvoInAllQueries(queryClient, targetId, () => updatedConvo);
+      },
+    },
+  );
+};
+
+export const useJapaneseAdviceMutation = (
+  conversationId: string,
+): UseMutationResult<t.TJapaneseAdviceResponse, unknown, t.TJapaneseAdviceRequest, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: t.TJapaneseAdviceRequest) => dataService.requestJapaneseAdvice(payload),
+    {
+      onSuccess: ({ messageId, advice }) => {
+        queryClient.setQueryData<t.TMessage[]>([QueryKeys.messages, conversationId], (messages) =>
+          messages?.map((message) =>
+            message.messageId === messageId
+              ? {
+                  ...message,
+                  metadata: {
+                    ...(message.metadata ?? {}),
+                    japaneseAdvice: advice,
+                  },
+                }
+              : message,
+          ),
+        );
+      },
+    },
+  );
+};
+
 export const useTagConversationMutation = (
   conversationId: string,
   options?: t.updateTagsInConvoOptions,
