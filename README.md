@@ -2,7 +2,7 @@
 
 1. Chat like normal with an llm
 2. You can enable Japanese "advisor" mode - it reads the messages you send and check if they're "natural" for either formal/casual speech
-3. The advisor is completely separate from the partner, so I don't have to worry about context mixup
+3. The advisor runs outside the chat context (no history mixup) and reuses the current chat model's provider and credentials
 
 <img width="1134" height="759" alt="image" src="https://github.com/user-attachments/assets/ce654e16-5899-430b-89c6-5d78dee8248f" />
 

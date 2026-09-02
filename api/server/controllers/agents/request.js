@@ -55,6 +55,9 @@ const {
   saveConvo,
   getMessages,
   getConvo,
+  updateMessageJapaneseAdvice,
+  getUserKey,
+  getUserKeyValues,
   getAgentEventActorSnapshot,
   commitAgentEventActorState,
   storeAgentEventActorSuspension,
@@ -1943,6 +1946,9 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       japaneseAdvicePromise = runJapaneseAdvisor({
         text: userMsg.text,
         profile,
+        req,
+        agent: client?.options?.agent,
+        db: { getUserKey, getUserKeyValues },
       }).catch((error) => {
         logger.error('[ResumableAgentController] Japanese advisor failed', error);
         return {

@@ -5,6 +5,7 @@ const {
   ContentTypes,
   isAssistantsEndpoint,
   japaneseLearningProfileSchema,
+  parseEphemeralAgentId,
 } = require('librechat-data-provider');
 const {
   unescapeLaTeX,
@@ -19,6 +20,46 @@ const db = require('~/models');
 
 const router = express.Router();
 router.use(requireJwtAuth);
+/**
+ * Reconstructs the main chat's provider context for the advisor from the
+ * persisted conversation: `model` and `endpoint` are saved on the convo row;
+ * for agent chats the ephemeral id encodes the original endpoint and model,
+ * while a persisted `agent_id` names the DB agent (provider lives on the
+ * agent document). Returns null when the context is unrecoverable — the
+ * advisor then reports a clean skip instead of erroring.
+ */
+async function resolveAdvisorAgentContext(conversation) {
+  if (!conversation) {
+    return null;
+  }
+
+  const endpoint = conversation.endpoint;
+  const model = conversation.model;
+  const agentId = conversation.agent_id;
+
+  if (isAssistantsEndpoint(endpoint)) {
+    return null;
+  }
+
+  if (agentId && !parseEphemeralAgentId(agentId)) {
+    try {
+      const agent = await db.getAgent({ id: agentId });
+      if (agent) {
+        return { provider: agent.provider, endpoint: agent.provider, model: agent.model };
+      }
+    } catch (error) {
+      logger.warn('[japanese-advice] Failed to load agent for advisor context', error);
+      return null;
+    }
+  }
+
+  const ephemeral = agentId ? parseEphemeralAgentId(agentId) : undefined;
+  return {
+    provider: ephemeral?.endpoint ?? endpoint,
+    endpoint: ephemeral?.endpoint ?? endpoint,
+    model: ephemeral?.model ?? model,
+  };
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -449,9 +490,13 @@ router.post('/:conversationId/:messageId/japanese-advice', validateMessageReq, a
       return res.status(400).json({ error: 'japaneseLearning is invalid' });
     }
 
+    const agentContext = await resolveAdvisorAgentContext(conversation);
     const advice = await runJapaneseAdvisor({
       text: message.text ?? '',
       profile: parsedProfile.data,
+      req,
+      agent: agentContext,
+      db,
     });
 
     await db.updateMessageJapaneseAdvice(req.user.id, { messageId, advice });
