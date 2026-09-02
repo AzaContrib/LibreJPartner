@@ -56,7 +56,6 @@ import { useApplyModelSpecEffects } from './Agents';
 import { useAgentsMapContext } from '~/Providers';
 import { usePauseGlobalAudio } from './Audio';
 import { useHasAccess } from '~/hooks';
-import { useAgentsMapContext } from '~/Providers';
 import store from '~/store';
 
 const useNewConvo = (index = 0) => {
@@ -84,7 +83,6 @@ const useNewConvo = (index = 0) => {
   const { pauseGlobalAudio } = usePauseGlobalAudio(index);
   const saveDrafts = useRecoilValue<boolean>(store.saveDrafts);
   const resetBadges = useResetChatBadges();
-  const agentsMap = useAgentsMapContext();
 
   const { mutateAsync } = useDeleteFilesMutation({
     onSuccess: () => {

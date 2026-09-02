@@ -66,7 +66,7 @@ function areMessageRenderPropsEqual(prev: MessageRenderProps, next: MessageRende
     return false;
   }
 
- @ours
+  return areMessageFieldsEqual(prev.message, next.message);
 }
 
 const MessageRender = memo(function MessageRender({

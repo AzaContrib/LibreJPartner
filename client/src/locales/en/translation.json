@@ -1454,6 +1454,7 @@
   "com_ui_japanese_register_formal": "Formal",
   "com_ui_japanese_register_polite": "Polite",
   "com_ui_japanese_target_register": "Register",
+  "com_ui_select_or_create_prompt": "Select or create a prompt",
   "com_ui_key": "Key",
   "com_ui_key_required": "API key is required",
   "com_ui_labels": "Labels",

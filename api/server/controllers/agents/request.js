@@ -1937,10 +1937,35 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       }
     };
 
-    const startJapaneseAdvice = (userMsg) => {
+    const ADVICE_HISTORY_LIMIT = 8;
+
+    /** Recent turns before the current message, oldest first, for advisor
+     *  context. Messages saved by this request are excluded by messageId. */
+    const getAdvisorHistory = async (userMsg) => {
+      const prior = await getMessages(
+        { conversationId, user: userId, messageId: { $ne: userMsg.messageId } },
+        'text isCreatedByUser sender',
+      );
+      const usable = prior
+        .filter((msg) => typeof msg.text === 'string' && msg.text.trim().length > 0)
+        .slice(-ADVICE_HISTORY_LIMIT);
+      return usable.map((msg) => ({
+        role: msg.isCreatedByUser === true ? 'user' : 'assistant',
+        text: msg.text,
+      }));
+    };
+
+    const startJapaneseAdvice = async (userMsg) => {
       const profile = getJapaneseLearningProfile(req, endpointOption);
       if (!isJapaneseLearningAdvisorEnabled(profile) || !userMsg?.text) {
         return;
+      }
+
+      let history = null;
+      try {
+        history = await getAdvisorHistory(userMsg);
+      } catch (error) {
+        logger.warn('[ResumableAgentController] Failed to load advisor history', error);
       }
 
       japaneseAdvicePromise = runJapaneseAdvisor({
@@ -1949,6 +1974,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         req,
         agent: client?.options?.agent,
         db: { getUserKey, getUserKeyValues },
+        history,
       }).catch((error) => {
         logger.error('[ResumableAgentController] Japanese advisor failed', error);
         return {
@@ -2796,6 +2822,10 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           });
           if (!savedUserMessage) {
             throw new Error('User message could not be persisted before terminal publication');
+          }
+          if (!userMessagePromise) {
+            userMessagePromise = Promise.resolve(savedUserMessage);
+            scheduleJapaneseAdvicePersist();
           }
         }
         // Only consume the parked recovery source after the explicit user-row

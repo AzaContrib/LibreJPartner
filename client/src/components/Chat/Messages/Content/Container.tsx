@@ -1,7 +1,8 @@
 import { TMessage } from 'librechat-data-provider';
 import MessageQuotes from './MessageQuotes';
 import SkillPills from './SkillPills';
- @both
+import Files from './Files';
+import JapaneseAdvicePanel from './JapaneseAdvicePanel';
 
 const Container = ({ children, message }: { children: React.ReactNode; message?: TMessage }) => (
   <div

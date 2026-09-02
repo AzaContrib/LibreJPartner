@@ -3,6 +3,7 @@ import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { replaceSpecialVars } from 'librechat-data-provider';
 import type {
   TConversation,
+  TMessage,
   TPromptGroup,
   TJapaneseLearningProfile,
 } from 'librechat-data-provider';
@@ -15,6 +16,13 @@ import store from '~/store';
 
 type SubmitMessageData = {
   text: string;
+  overrideFiles?: TMessage['files'];
+  overrideQuotes?: string[];
+  overrideManualSkills?: string[];
+  overrideClientRequestId?: string;
+  overrideRecoverySteerId?: string;
+  overrideExpectedPredecessorCreatedAt?: number;
+  overrideQueuedMessageOrigin?: unknown;
   conversationOverrides?: Partial<TConversation>;
 };
 
@@ -51,20 +59,24 @@ export default function useSubmitMessage() {
       if (!data) {
         return console.warn('No data provided to submitMessage');
       }
-      const rootMessages = getMessages();
-      const isLatestInRootMessages = rootMessages?.some(
-        (message) => message.messageId === latestMessage?.messageId,
-      );
-      if (!isLatestInRootMessages && latestMessage) {
-        setMessages([...(rootMessages || []), latestMessage]);
-      }
-
       const submitted = ask(
         {
           text: data.text,
+          ...(data.overrideRecoverySteerId != null && {
+            overrideUserMessageId: data.overrideRecoverySteerId,
+          }),
         },
         {
           addedConvo: addedConvo ?? undefined,
+          // Queued during-run messages carry their own consumed attachments,
+          // quote chips, and manual skill picks (undefined = drain composer).
+          overrideFiles: data.overrideFiles,
+          overrideQuotes: data.overrideQuotes,
+          overrideManualSkills: data.overrideManualSkills,
+          overrideClientRequestId: data.overrideClientRequestId,
+          overrideRecoverySteerId: data.overrideRecoverySteerId,
+          overrideExpectedPredecessorCreatedAt: data.overrideExpectedPredecessorCreatedAt,
+          overrideQueuedMessageOrigin: data.overrideQueuedMessageOrigin,
           conversationOverrides: data.conversationOverrides,
         },
       );

@@ -824,7 +824,8 @@ function ChatFormWrapper({
       conversation?.spec,
       conversation?.useResponsesApi,
       conversation?.model,
- @both
+      conversation?.maxContextTokens,
+      conversation?.japaneseLearning,
       hasMessages,
     ],
   );

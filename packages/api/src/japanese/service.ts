@@ -28,6 +28,10 @@ export type RunJapaneseAdvisorParams = {
   agent?: AdvisorAgentContext | null;
   /** Database methods for user-provided key resolution (inject `~/models`). */
   db?: EndpointDbMethods | null;
+  /** Recent conversation turns before the learner message, oldest first.
+   *  Context only — gives the advisor enough to disambiguate references
+   *  (quotes, follow-ups) without pulling the advisor into the chat. */
+  history?: Array<{ role: 'user' | 'assistant'; text: string }> | null;
 };
 
 type AdvisorRequestContext = {
@@ -192,7 +196,37 @@ function buildRegisterInstruction(profile: TJapaneseLearningProfile): string {
   return 'Target register: infer from the partner role. A close friend role should prefer casual speech; a supervisor or mentor role should prefer polite or formal speech.';
 }
 
-function buildPrompt(text: string, profile: TJapaneseLearningProfile): string {
+const MAX_HISTORY_TURNS = 8;
+const MAX_HISTORY_CHARS_PER_TURN = 500;
+
+function buildHistoryBlock(
+  history?: Array<{ role: 'user' | 'assistant'; text: string }> | null,
+): string[] {
+  if (history == null || history.length === 0) {
+    return [];
+  }
+  const turns = history
+    .slice(-MAX_HISTORY_TURNS)
+    .map((turn) => {
+      const role = turn.role === 'user' ? 'Learner' : 'Partner';
+      return `${role}: ${turn.text.slice(0, MAX_HISTORY_CHARS_PER_TURN).replace(/\s+/g, ' ').trim()}`;
+    })
+    .filter((line) => line.length > `${'Learner'}: `.length);
+  if (turns.length === 0) {
+    return [];
+  }
+  return [
+    'Recent conversation (context only, for understanding what the learner message refers to):',
+    ...turns,
+    'End of recent conversation.',
+  ];
+}
+
+function buildPrompt(
+  text: string,
+  profile: TJapaneseLearningProfile,
+  history?: Array<{ role: 'user' | 'assistant'; text: string }> | null,
+): string {
   const learnerLevel = profile.learnerLevel ?? 'N5';
   const partnerRole = profile.partnerRole?.trim() || 'Japanese conversation partner';
   const register = normalizeRegister(profile.targetRegister);
@@ -200,6 +234,11 @@ function buildPrompt(text: string, profile: TJapaneseLearningProfile): string {
   return [
     'You are a Japanese language advisor running outside the main chat context.',
     'Analyze only the learner message below. Do not answer the learner conversationally.',
+    ...(history != null && history.length > 0
+      ? [
+          'The conversation history is reference material: use it to resolve references and quotations in the learner message, never to judge the partner\'s own Japanese or to change the register of the learner message.',
+        ]
+      : []),
     'Give feedback in English. Keep explanations concise and practical.',
     'If the sentence is natural for the target role/register, return status "ok" with a short summaryEnglish.',
     'If it is understandable but unnatural or incorrect, return status "needs_improvement".',
@@ -208,6 +247,7 @@ function buildPrompt(text: string, profile: TJapaneseLearningProfile): string {
     `Learner level: ${learnerLevel}. Keep suggested Japanese near this level when reasonable.`,
     `Partner role: ${partnerRole}.`,
     `Normalized targetRegister field to return when applicable: ${register}.`,
+    ...buildHistoryBlock(history),
     'Return JSON only with this shape:',
     '{"status":"ok|needs_improvement|skipped","targetRegister":"auto|casual|polite|formal","correctedJapanese":"...","naturalJapanese":"...","summaryEnglish":"...","issues":[{"original":"...","suggestion":"...","explanationEnglish":"...","severity":"minor|major"}]}',
     'Learner message:',
@@ -218,6 +258,7 @@ function buildPrompt(text: string, profile: TJapaneseLearningProfile): string {
 async function runAdvisor({
   text,
   profile,
+  history,
   signal,
   provider,
   model,
@@ -225,6 +266,7 @@ async function runAdvisor({
 }: {
   text: string;
   profile: TJapaneseLearningProfile;
+  history?: Array<{ role: 'user' | 'assistant'; text: string }> | null;
   signal?: AbortSignal;
   provider: string;
   model: string;
@@ -241,7 +283,7 @@ async function runAdvisor({
 
   const response = await llm
     .withConfig({ runName: 'JapaneseAdvisor' })
-    .invoke([new HumanMessage(buildPrompt(text, profile))], { signal });
+    .invoke([new HumanMessage(buildPrompt(text, profile, history))], { signal });
 
   const responseText = getContentText(response);
   if (!responseText) {
@@ -266,6 +308,7 @@ export async function runJapaneseAdvisor({
   req,
   agent,
   db,
+  history,
 }: RunJapaneseAdvisorParams): Promise<TJapaneseAdvice> {
   const profile = normalizeProfile(rawProfile);
   const skipped = shouldSkip(text, profile);
@@ -300,7 +343,7 @@ export async function runJapaneseAdvisor({
       context: { req, db },
     });
 
-    return await runAdvisor({ text, profile, signal, provider, model, clientOptions });
+    return await runAdvisor({ text, profile, history, signal, provider, model, clientOptions });
   } catch (error) {
     if (signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')) {
       return {

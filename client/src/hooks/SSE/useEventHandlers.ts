@@ -117,6 +117,65 @@ export const isInitialNewConversationSubmission = ({
 }: Pick<EventSubmission, 'userMessage'>): boolean =>
   userMessage?.parentMessageId === Constants.NO_PARENT;
 
+/**
+ * Whether the run was sent from the unsaved-chat composer, which is the only case where
+ * finishing it may drop the pane's new-chat draft. Regenerating or resubmitting the first turn
+ * of a saved conversation keeps the root parent id, so the root parent alone cannot decide it.
+ */
+export const startedAsNewConversation = ({
+  conversation,
+  userMessage,
+  isEdited,
+  isRegenerate,
+}: Pick<
+  EventSubmission,
+  'conversation' | 'userMessage' | 'isEdited' | 'isRegenerate'
+>): boolean => {
+  const conversationId = conversation?.conversationId;
+  if (
+    !conversationId ||
+    conversationId === Constants.NEW_CONVO ||
+    conversationId === Constants.PENDING_CONVO
+  ) {
+    return true;
+  }
+
+  return (
+    isEdited !== true &&
+    isRegenerate !== true &&
+    isInitialNewConversationSubmission({ userMessage })
+  );
+};
+
+export const mergeErrorMessages = ({
+  messages,
+  regenerateMessages,
+  userMessage,
+  errorMessage,
+  isRegenerate = false,
+}: Pick<EventSubmission, 'messages' | 'regenerateMessages' | 'userMessage' | 'isRegenerate'> & {
+  errorMessage: TMessage;
+}): TMessage[] => {
+  if (isRegenerate) {
+    const finalMessages: TMessage[] = [];
+    let replaced = false;
+    for (const message of regenerateMessages ?? messages) {
+      if (message.messageId === errorMessage.messageId) {
+        finalMessages.push(errorMessage);
+        replaced = true;
+      } else {
+        finalMessages.push(message);
+      }
+    }
+    if (!replaced) {
+      finalMessages.push(errorMessage);
+    }
+    return finalMessages;
+  }
+
+  return [...messages, userMessage, errorMessage];
+};
+
 export const mergeRegenerateFinalMessages = ({
   messages,
   responseMessage,
@@ -178,6 +237,7 @@ export type EventHandlerParams = {
   setIsSubmitting: SetterOrUpdater<boolean>;
   setConversation?: SetterOrUpdater<TConversation | null>;
   newConversation?: ConvoGenerator;
+  runIndex?: number;
   setShowStopButton: SetterOrUpdater<boolean>;
 };
 
@@ -290,6 +350,7 @@ export default function useEventHandlers({
   setConversation,
   setIsSubmitting,
   newConversation,
+  runIndex = 0,
   setShowStopButton,
 }: EventHandlerParams) {
   const queryClient = useQueryClient();
@@ -304,7 +365,15 @@ export default function useEventHandlers({
   const { token } = useAuthContext();
 
   const { contentHandler, resetContentHandler } = useContentHandler({ setMessages, getMessages });
-  const { stepHandler, clearStepMaps, resetSubagentAtoms, syncStepMessage } = useStepHandler({
+  const {
+    stepHandler,
+    clearStepMaps,
+    resetSubagentAtoms,
+    syncStepMessage,
+    prunePtcTraces,
+    flushPendingDeltas,
+    cancelPendingDeltaFlush,
+  } = useStepHandler({
     setMessages,
     getMessages,
     announcePolite,
@@ -1193,6 +1262,9 @@ export default function useEventHandlers({
     titleHandler,
     japaneseAdviceHandler,
     syncStepMessage,
+    prunePtcTraces,
+    flushPendingDeltas,
+    cancelPendingDeltaFlush,
     attachmentHandler,
     abortConversation,
     resetContentHandler,
